@@ -1,318 +1,195 @@
-# TMS 面板
+# TMS Service Center
 
-## 本仓库新增功能
+基于 [Teminuosi/Tms](https://github.com/Teminuosi/Tms) 二次开发的线路管理与用户自助面板，集中管理协议、转发、用户配额、套餐分配和人工续期。
 
-本仓库基于 [Teminuosi/Tms](https://github.com/Teminuosi/Tms) 的本地源码进行二次开发，保留原有许可证及项目说明。
+[功能介绍](#功能介绍) · [界面预览](#界面预览) · [源码部署](#源码部署) · [使用流程](#使用流程) · [开发与验证](#开发与验证)
 
-- **线路详情**：流量、延迟与丢包、关联用户、一键诊断。见 [线路详情说明](docs/line-detail.md)。
-- **用户自助中心**：订阅、线路额度与到期、人工续期申请、处理进度及服务记录。
-- **套餐与续期管理**：套餐模板、最多 50 人的批量分配、人工续期、到期和用量提醒、变更前后记录。见 [使用与部署说明](docs/service-center.md)。
-- 本版本不包含在线支付。已通过前端生产构建和 23 项后端测试，真实节点需在部署环境验证。
+> **当前提供源码，尚未发布本仓库的 Docker 镜像或安装包。**
+> 使用本仓库新增功能，请按下方步骤构建前后端。原有 `panel_install.sh`、`docker-compose-v4.yml`、`docker-compose-v6.yml` 仍使用上游资源，不能用于安装本仓库新增功能。
 
-当前提供源码，未发布本仓库的镜像或安装包。下文保留的安装脚本与镜像地址指向上游，不包含本仓库新增功能。请自行构建前后端并参考上述部署说明；镜像发布工作流改为手动触发，使用前需修改其中上游镜像地址。
+## 功能介绍
 
----
+| 模块 | 功能 |
+| --- | --- |
+| 线路详情 | 查看关联用户、当前线路流量、前置机历史流量、监测延迟与丢包，执行一键诊断 |
+| 用户自助中心 | 查看线路额度、用量、到期时间，复制订阅或扫码，提交人工续期申请并查看进度 |
+| 套餐模板 | 配置直连或中转线路、GB 额度、有效天数、可选限速，支持编辑和停用 |
+| 批量分配 | 每批最多 50 人，分配前预览，逐人显示结果，已有相同线路自动跳过 |
+| 人工续期 | 增加有效期，保持、追加或设置流量额度，保留已有订阅和已用流量 |
+| 站内提醒 | 到期前 7 天、流量使用达到 80%、流量耗尽及账号或线路异常提示 |
+| 操作记录 | 记录执行结果、操作人、内部备注及变更前后的额度和到期时间 |
+| 原有管理能力 | 多协议、直连与中转、端口转发、用户管理、限速、流量与到期控制 |
 
-> 一个面板同时搞定**翻墙协议**、**转发中转**、以及**每用户限速 / 流量 / 到期**。
+支持通用订阅及 Clash / Mihomo 订阅。本版本**不包含在线支付、自动扣费或外部消息推送**。
 
-<p>
-  <a href="https://3yuedaohang.com">站长博客</a> ·
-  <a href="https://www.youtube.com/@zhanzhang3yue">YouTube</a> ·
-  <a href="https://3yuedaohang.com/cn2/banwagong">机器推荐</a>
-</p>
+### 数据与操作说明
 
----
+- 线路累计流量来自当前关联的转发记录；前置机历史流量和探测数据包含机器层面的信息，不等同于单线路计费或用户端到端质量。
+- 一键诊断检查支持的协议监听与落地连接。UDP 协议不会通过 TCP 探测直接判定失败，实际使用仍需客户端验证。
+- 续期不会清零已用流量；账号状态、账号总额度和账号到期仍独立生效。
+- 提醒在打开或刷新页面时计算，不会自动发邮件、短信或 Telegram。
+- 批量分配由浏览器逐项提交。离开页面后，尚未提交的用户不会继续执行；已提交结果保存在服务端。
+- 操作显示「需核对」或长时间「处理中」时，先检查记录和节点状态，避免重复增加天数。
 
-## 能做什么
+完整说明：[线路详情](docs/line-detail.md) · [自助中心、套餐与续期](docs/service-center.md)
 
-| | 说明 |
-|---|---|
-| **协议管理** | 一键搭全套协议(VLESS-Reality / Trojan / VMess / Hysteria2 / TUIC / AnyTLS),出订阅给用户 |
-| **中转** | 前置机搭协议 + 落地出口(住宅 socks / 机场节点 / 自己的节点),给用户干净出口 IP,自带在线测落地 |
-| **端口转发 / 隧道转发** | 通用端口搬运、两级加密中转 |
-| **限速 / 流量 / 到期** | 每个用户独立限速(TCP + UDP 都限)、流量配额、到期时间 |
-| **订阅按线路** | 一个用户可以有多条订阅,直连 / 各中转各自独立,互不影响 |
-| **中央管理** | 一台面板管所有转发机,节点一条命令上线 |
+## 界面预览
 
-订阅同时支持两种格式:**通用**(v2rayN / 小火箭 / v2rayNG)和 **Clash / Mihomo**(Clash Verge、ClashMeta)。
+以下截图使用本地测试数据，订阅地址和账号均为演示内容，部分导航文字可能与当前版本略有差异。
 
-<sub>本项目基于 [go-gost/gost](https://github.com/go-gost/gost) 和 [go-gost/x](https://github.com/go-gost/x) 两个开源库。</sub>
+### 用户自助中心
 
-
-## 部署
-
-要装两样东西:
-
-| | 装在哪 | 装什么 | 需要 Docker |
-|---|---|---|---|
-| **面板端** | 一台机器即可 | 中央管理面板 | 是(脚本自动装) |
-| **节点端** | 每台转发机 | gost 裸二进制 | 否 |
-
-<br>
-
-### 第一步 · 装面板端
-
-找一台机器执行:
-
-```bash
-curl -L https://raw.githubusercontent.com/Teminuosi/Tms/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-```
-
-装完会打印访问地址。默认账号 **admin_user** / **admin_user**。
-
-> [!WARNING]
-> 首次登录后**立刻改密码**。面板是公网可访问的,默认口令等于没有口令。
-
-<br>
-
-### 第二步 · 装节点端
-
-**不用手敲命令,在面板里生成:**
-
-```
-登录面板 → 左侧「转发机监控」→「新增」填这台机器的 IP → 保存
-        → 点该机器的「安装」→ 复制弹出的命令 → 到那台机器上执行
-```
-
-弹出的命令已经带好了「面板地址 + 该机器专属密钥」,全自动、无需手输。
-
-> [!NOTE]
-> 密钥是**新增转发机时才生成的、只有面板知道**,所以节点端命令必须从面板里拿,
-> 没法自己拼出来。
-
-<br>
-
-> [!IMPORTANT]
-> **国内机器(阿里云 / 腾讯云 / 华为云等)看这里**
->
-> 直连 GitHub 会超时,表现是卡在下载那一步不动,或者装完面板报
-> 「sing-box 未运行」。用镜像加速,并加 `-c` 强制内部下载也走国内镜像:
->
-> ```bash
-> curl -L https://ghfast.top/https://raw.githubusercontent.com/Teminuosi/Tms/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh -c -a 面板地址:端口 -s 你的密钥
-> ```
->
-> `面板地址` 和 `密钥` 就从上面「点安装」弹出的那条命令里抄。
->
-> **镜像失效了怎么办**:把命令里的 `ghfast.top` 整体换成下面任一个,
-> 并在命令最前面加 `GH_MIRROR=https://新镜像/`(让内部下载 gost 也走它):
-> `gh-proxy.com` · `ghproxy.net` · `mirror.ghproxy.com`
+![用户自助中心：线路概览、到期与用量提醒、订阅入口](docs/images/self-center.jpg)
 
 <details>
-<summary>手动装节点端(不推荐)</summary>
+<summary>查看线路详情与操作记录</summary>
 
-<br>
+### 线路详情
 
-也可以直接在机器上跑裸命令,它会**交互式询问**面板地址和密钥
-(密钥同样得先在面板「转发机监控」新增该转发机才有):
+![线路详情：线路信息、关联用户数量与流量趋势](docs/images/line-detail.jpg)
 
-```bash
-curl -L https://raw.githubusercontent.com/Teminuosi/Tms/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-```
+### 续期与分配记录
+
+![操作记录：执行结果、变更前后值与操作人](docs/images/service-records.jpg)
 
 </details>
 
-<br>
+## 源码部署
 
-### 装完之后 · tms 命令
+下面使用仓库现有的 [docker-compose-hybrid.yml](docker-compose-hybrid.yml) 构建面板，适合先在独立 Linux 测试机上验收。需要 Git、Docker、Docker Compose 插件及 OpenSSL，构建时需要访问镜像和依赖仓库。
 
-面板机上会生成一个 `tms` 命令(类似 x-ui),直接输入打开管理菜单:
+该 Compose 文件使用固定容器名、网络名和数据卷名，数据库镜像为 MySQL 5.7。不要与已有 TMS 实例直接混用，也不要把旧部署目录或数据库当成全新环境初始化。
 
-```bash
-tms
-```
-
-也可以带参数直接用:
-
-| 命令 | 作用 |
-|---|---|
-| `tms` | 打开管理菜单 |
-| `tms update` | 更新面板到最新版 |
-| `tms status` | 查看运行状态 |
-| `tms info` | 查看访问地址 / 账号 |
-| `tms domain 域名` | 给面板配域名 + HTTPS |
-| `tms domain` | 查看当前域名状态 |
-| `tms domain off` | 关闭域名,回到 IP:端口 |
-| `tms export` | 导出数据库备份 |
-| `tms purge` | 彻底清理(卸载并清空容器 / 镜像 / 卷 / 命令) |
-
----
-
-
-## 域名配置
-
-面板和转发机的域名是**两件独立的事**,解决的问题也不一样。
-
-### 一、给面板套域名(HTTPS)
-
-默认只能 `http://IP:6366` 访问,浏览器会标"不安全"。配了域名之后走 HTTPS,**订阅链接也会跟着变成域名**。
+### 1. 获取本仓库源码
 
 ```bash
-tms domain panel.example.com
+git clone https://github.com/Rohing1/tms-service-center.git
+cd tms-service-center
 ```
 
-背后用 Caddy 自动申请和续期 Let's Encrypt 证书,会依次检查:域名解析是否指向本机 → 80/443 有没有被占 → 写配置 → 起 Caddy → 等证书签发(最多 60 秒)。
+### 2. 创建环境配置
 
-**前置条件:**
-- 域名已经解析(A 记录)到面板服务器
-- 80 和 443 端口空闲(装了宝塔的话先停掉它的 nginx)
-- 云服务器安全组放行 80、443
-
-> 💡 原来的 `IP:6366` 会保留作为备用入口,域名出问题时还能进得去。
->
-> ⚠️ 配了域名后,**已经发出去的旧订阅(IP 版)不会自动更新**,要让车友重新拉一次。所以建议装好就配,人越少越好办。
-
-### 二、给转发机配域名(不让车友看到你的 IP)
-
-车友拿到订阅后,能在客户端里看到每个节点的地址。默认显示的是**转发机的真实 IP**。
-
-在「转发机」→ 编辑 → **连接域名(可选)** 里填一个域名,车友看到的就变成域名了:
-
-```
-美国机   us.example.com   →  解析到 203.0.113.10
-香港机   hk.example.com   →  解析到 203.0.113.20
-国内机   cn.example.com   →  解析到 203.0.113.30
-```
-
-**一台转发机一个子域名**(同一个域名下开子域名即可,不用买多个),填之前先去 DNS 加好 A 记录。留空则维持原样显示 IP。
-
-好处除了不暴露 IP,还有:**机器 IP 被墙时改条 DNS 解析就活了,不用通知车友重新拉订阅。**
-
-> ⚠️ **这只是"不直接显示",不是真正的隐藏。** 对方 `ping` 一下域名照样拿到 IP。
-> 要做到查都查不到,只有走 CDN(Cloudflare 橙云),而目前一键搭建的六个协议
-> (VLESS-Reality / Trojan-Reality / VMess / Hysteria2 / TUIC / AnyTLS)都过不了 CDN
-> —— Reality 要跟真实服务端直接握手、Hysteria2 和 TUIC 走 UDP,CF 都不转发。
-> 挡普通车友足够,防封锁不行。
-
-## 卸载
-
-**先分清两种机器,卸载方式完全不同:**
-
-| 角色 | 装了什么 | 有 `tms` 命令吗 |
-|---|---|---|
-| **面板机**(只有一台) | Docker:MySQL + 后端 + 前端 | ✅ 有 |
-| **节点机 / 转发机**(每台) | gost + sing-box(systemd 服务) | ❌ 没有 |
-
-> ⚠️ `tms purge` 和 `panel_install.sh purge` **只清面板**,对节点机上的 gost 一点作用都没有。反过来,清节点也不会影响面板。两边要分别执行。
-
-### 一、卸载面板机
-
-在面板安装目录下执行:
+在仓库根目录执行。下列命令只在 `.env` 不存在时创建配置，并生成随机数据库密码和 JWT 密钥：
 
 ```bash
-tms purge
+if [ ! -f .env ]; then
+  umask 077
+  cat > .env <<EOF
+DB_NAME=gost
+DB_USER=gost
+DB_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 32)
+BACKEND_PORT=6365
+FRONTEND_PORT=6366
+EOF
+fi
 ```
 
-删除所有容器、镜像、数据卷、网络、配置文件和 `tms` 管理命令。也可以直接输入 `tms` 打开菜单选「彻底清理」。
+端口如有冲突，请先修改 `.env`。已有数据库部署必须沿用原数据库凭据，不能随意重新生成密码。`.env` 已被 Git 忽略，请单独妥善备份。
 
-如果 `tms` 命令不在了(比如当初就没装成功),用一次性脚本:
+### 3. 构建并启动面板
 
 ```bash
-curl -L https://raw.githubusercontent.com/Teminuosi/Tms/main/panel_install.sh -o /tmp/tms.sh && bash /tmp/tms.sh purge
+docker compose -f docker-compose-hybrid.yml --env-file .env up -d --build
+docker compose -f docker-compose-hybrid.yml --env-file .env ps
+docker compose -f docker-compose-hybrid.yml --env-file .env logs --tail=100 backend
 ```
 
-> 💡 最好 **cd 到当初安装面板的目录**再执行。不在那个目录时,脚本会从 `/usr/local/bin/tms` 里读回安装目录并自动切过去;
-> 那个文件也没了的话,容器和镜像照样按名字清掉,只是安装目录里的 `docker-compose.yml` / `.env` 要你自己删。
-> 脚本会检查当前目录的 `docker-compose.yml` 是不是 TMS 的,不是就跳过 compose 清理,避免误删你其它项目的容器和 `.env`。
+构建和服务启动完成后，访问 `http://服务器IP:6366`；若修改了 `FRONTEND_PORT`，使用实际端口。
 
-#### 源码编译版(合体部署)怎么卸
+全新数据库的默认账号和密码均为 `admin_user`。首次登录后立即修改密码。
 
-用 `git clone` + `docker-compose-hybrid.yml` 本地构建起来的面板,管理命令同样是 `tms`:
+初次初始化使用 `gost.sql`。不要在全新库上重复导入 `hybrid-schema-v1.sql` 至 `v3.sql`；它们是旧版本升级文件。后端启动时会为套餐与续期新增四张表，数据库账号需具备相应建表权限，详情见 [部署与存储](docs/service-center.md#部署与存储)。
+
+这套 Docker 部署尚未在真实服务器验收；本地已完成的构建、测试和页面检查见下方「开发与验证」。
+
+### 4. 接入节点和配置域名
+
+在管理端「转发机」中新增节点，使用该节点的安装入口生成命令。**当前节点安装命令和 `install.sh` 仍下载上游 `Teminuosi/Tms` 的 Release**，本仓库尚未提供独立节点发布包。安装前确认目标机器，接入后先验证一条直连和一条中转。
+
+面板配置 HTTPS 时，将反向代理指向前端端口，并转发 WebSocket 升级头。详细配置见 [反向代理说明](docs/反向代理.md)。
+
+### 5. 后续更新
+
+更新前备份数据库与 `.env`。在本仓库目录执行：
 
 ```bash
-tms purge
+git pull --ff-only origin main
+docker compose -f docker-compose-hybrid.yml --env-file .env up -d --build
+docker compose -f docker-compose-hybrid.yml --env-file .env logs --tail=100 backend
 ```
 
-或者输入 `tms` 打开菜单选「7) 彻底卸载」。它会删掉容器、**本地构建的镜像**、数据卷(含数据库数据)、
-网络和 `tms` 命令;**源码目录会保留**,确认不要了自己 `rm -rf` 即可。
+前后端需要一起更新。若本地有未提交修改或分支已分叉，先处理差异；不要用强制重置覆盖自己的配置和代码。
 
-### 二、卸载节点机(转发机)
+仓库保留的发布工作流包含上游镜像地址和发布链接，尚未完成本仓库的发布适配。镜像工作流已改为手动触发，触发前需检查并调整目标地址。
 
-> 🚨 **面板机同时也当转发机用的话,千万别在它上面跑这段。**
-> 很多人把面板和第一台转发机装在同一台机器上,这段命令会把**本机的节点服务一起停掉并 disable**
-> —— 所有协议瞬间全部失效,而面板里节点还显示「在线」(gost 是另一个服务,它还活着),
-> 极难联想到是刚才那条命令干的。只想卸载**其它**转发机时,请 SSH 到那台机器上执行。
->
-> 万一误跑了,恢复:`systemctl enable --now sing-box`
-> ——必须带 `enable`,因为它被 `disable` 过,只 `start` 的话重启机器又会消失。
+## 使用流程
 
-**每台转发机都要单独执行**,直接复制这段:
+### 管理员
+
+1. 在「转发机」「协议管理」或「中转」中准备线路，确认节点可用。
+2. 打开「套餐与续期」→「套餐模板」，设置线路、额度、有效天数与可选限速。
+3. 在「批量分配」中选择模板和用户，核对预览后执行，查看每位用户的结果。
+4. 在「续期申请」中处理用户需求，预览并确认人工续期，或填写不通过的回复。
+5. 在「到期与用量提醒」和「操作记录」中查看需要处理的线路及变更记录。
+
+已有相同线路会被跳过；修改模板只影响后续分配。旧的用户管理续期入口也会跳转到新流程。
+
+### 用户
+
+1. 登录后进入「自助中心」，查看线路用量、到期与提醒。
+2. 按客户端类型复制通用或 Clash / Mihomo 订阅，或扫码导入。
+3. 需要续期时提交申请，写明所需天数或流量。
+4. 在「续期申请」查看管理员回复，在「服务记录」查看已执行的变更。
+
+提交申请不会自动修改套餐。处理完成后刷新页面，并在客户端更新订阅。
+
+## 开发与验证
+
+| 组件 | 目录 | 环境 |
+| --- | --- | --- |
+| 前端 | `vite-frontend` | React、TypeScript、Vite；Dockerfile 使用 Node.js 20.19.0 |
+| 后端 | `springboot-backend` | Spring Boot、MyBatis Plus；Java 21、Maven 3.9 |
+| 节点 | `go-gost` | Go；版本以 `go.mod` 的 `go` / `toolchain` 声明为准 |
+| 移动端源码 | `android-app`、`ios-app` | 保留原项目源码，本次功能未做原生客户端发布验证 |
+
+### 前端构建
 
 ```bash
-systemctl stop gost sing-box 2>/dev/null
-systemctl disable gost sing-box 2>/dev/null
-rm -rf /etc/systemd/system/sing-box.service.d /etc/gost
-find /etc/systemd /run/systemd \( -name 'gost.service' -o -name 'sing-box.service' \) -delete 2>/dev/null
-systemctl daemon-reload
-systemctl reset-failed 2>/dev/null
-echo "✅ 节点已卸载(gost + sing-box + 配置 + 证书)"
+cd vite-frontend
+npm ci --legacy-peer-deps
+npm run build
 ```
 
-> ⚠️ **别只删 `/etc/gost`**。搭过协议的机器上还有 sing-box,它的服务文件在 `/etc/systemd/system/`,只删安装目录的话二进制没了、服务还注册着,systemd 会一直重启失败刷满日志。
+### 后端测试
 
-> 💡 上面用 `find ... -delete` 而不是直接 `rm` 服务文件,是为了连 `multi-user.target.wants/` 里的**软链接**一起清掉。正常情况 `systemctl disable` 会删它们,但服务已经异常时可能残留,结果 `systemctl list-units --all` 里一直挂着一条 `not-found`,看着像没卸干净。
-
-也可以重新下节点脚本走菜单(选 `3` 卸载):
+在仓库根目录执行：
 
 ```bash
-curl -L https://raw.githubusercontent.com/Teminuosi/Tms/main/install.sh -o /tmp/n.sh && chmod +x /tmp/n.sh && /tmp/n.sh
+cd springboot-backend
+mvn -Dtest=ServiceCenterServiceTest,ServiceCenterControllerTest,RenewalPolicyTest,LineDetailServiceTest,LineDetailControllerTest test-compile org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test
 ```
 
-> 💡 **国内机器**(阿里云等)大概率下不动 GitHub,直接用上面那段命令。
+最近一次本地验证（2026-10-30）：
 
-### 三、验证是否清干净
+- 前端生产构建通过。
+- 23 项后端测试通过，覆盖权限隔离、重复提交、线路互斥、续期规则、申请处理和线路详情。
+- 使用临时 H2 数据库与模拟节点，不连接业务数据库。
+- 浏览器使用测试数据检查模板创建、批量分配、用户申请、人工续期、记录、手机布局及空白/错误状态。
 
-**面板机:**
-```bash
-docker ps -a | grep -E 'gost-mysql|springboot-backend|vite-frontend'
-command -v tms
-```
+真实 MySQL、节点配置下发、客户端连通性及完整 Docker 部署仍需在部署环境验收。
 
-**节点机:**
-```bash
-systemctl list-units --all | grep -E 'gost|sing-box'
-ls /etc/gost
-```
+## 文档与反馈
 
-都没有输出就说明干净了。
+- [线路详情与诊断说明](docs/line-detail.md)
+- [自助中心、套餐、批量分配与人工续期说明](docs/service-center.md)
+- [反向代理与 WebSocket 配置](docs/反向代理.md)
+- [提交问题或功能建议](https://github.com/Rohing1/tms-service-center/issues)
 
-### 四、顺手清理防火墙(可选)
+反馈时请说明操作步骤、预期结果和错误现象；日志或截图中的订阅 token、节点密钥及数据库密码应先隐藏。
 
-卸载不会动防火墙规则,之前给转发开的端口还留着。不打算再装的话:
+## 致谢与许可证
 
-```bash
-ufw status numbered      # 看编号
-ufw delete <编号>        # 逐条删
-```
+本仓库基于 [Teminuosi/Tms](https://github.com/Teminuosi/Tms) 二次开发，使用 [go-gost/gost](https://github.com/go-gost/gost) 与 [go-gost/x](https://github.com/go-gost/x) 等开源项目，保留原有版权与许可证文件。
 
-云服务器还要去控制台把**安全组**里对应的入方向规则删掉(阿里云、腾讯云、evoxt 等)。端口后面没服务在听,留着也不影响安全,看个人习惯。
-
-
-## 免责声明
-
-本项目仅供个人学习与研究使用，基于开源项目进行二次开发。  
-
-使用本项目所带来的任何风险均由使用者自行承担，包括但不限于：  
-
-- 配置不当或使用错误导致的服务异常或不可用；  
-- 使用本项目引发的网络攻击、封禁、滥用等行为；  
-- 服务器因使用本项目被入侵、渗透、滥用导致的数据泄露、资源消耗或损失；  
-- 因违反当地法律法规所产生的任何法律责任。  
-
-本项目为开源的流量转发工具，仅限合法、合规用途。  
-使用者必须确保其使用行为符合所在国家或地区的法律法规。  
-
-**作者不对因使用本项目导致的任何法律责任、经济损失或其他后果承担责任。**  
-**禁止将本项目用于任何违法或未经授权的行为，包括但不限于网络攻击、数据窃取、非法访问等。**  
-
-如不同意上述条款，请立即停止使用本项目。  
-
-作者对因使用本项目所造成的任何直接或间接损失概不负责，亦不提供任何形式的担保、承诺或技术支持。  
-
-
-请务必在合法、合规、安全的前提下使用本项目。  
-
----
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Teminuosi/Tms&type=Date)](https://www.star-history.com/#Teminuosi/Tms&Date)
-
+项目根目录许可证为 [Apache License 2.0](LICENSE)；各组件及第三方依赖遵循其各自许可证。项目按许可证所述以现状提供，不作担保，请在合法、获得授权的场景中使用。
