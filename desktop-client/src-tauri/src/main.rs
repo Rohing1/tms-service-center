@@ -28,9 +28,13 @@ fn normalize_address(value: &str) -> Result<Url, String> {
 // The server webview gets no filesystem, shell or application IPC authority.
 fn local_only(window: &WebviewWindow) -> Result<(), String> {
     let url = window.url().map_err(|_| "无法识别窗口来源")?;
-    if window.label() == "settings" && (url.scheme() == "tauri" || matches!(url.host_str(), Some("tauri.localhost" | "localhost"))) {
+    if window.label() == "settings" && is_settings_origin(&url) {
         Ok(())
     } else { Err("此窗口不能访问桌面设置".into()) }
+}
+fn is_settings_origin(url: &Url) -> bool {
+    (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+        || (matches!(url.scheme(), "http" | "https") && url.host_str() == Some("tauri.localhost"))
 }
 
 fn settings_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -85,12 +89,8 @@ fn show_settings(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("settings") { let _ = window.show(); let _ = window.set_focus(); }
 }
 
-#[tauri::command]
-async fn connect_server(window: WebviewWindow, app: tauri::AppHandle, address: String, name: String) -> Result<(), String> {
-    local_only(&window)?;
-    let url = normalize_address(&address)?;
-    let origin = url.origin();
-    let redirect_origin = origin.clone();
+async fn check_connection(url: &Url) -> Result<(), String> {
+    let redirect_origin = url.origin();
     let client = reqwest::Client::builder().timeout(Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::custom(move |attempt| {
             if attempt.previous().len() > 5 || attempt.url().origin() != redirect_origin { attempt.stop() } else { attempt.follow() }
@@ -104,6 +104,15 @@ async fn connect_server(window: WebviewWindow, app: tauri::AppHandle, address: S
     if !response.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").contains("text/html") {
         return Err("此地址没有返回面板网页，请填写前端地址，而非后台 API 地址".into());
     }
+    Ok(())
+}
+
+#[tauri::command]
+async fn connect_server(window: WebviewWindow, app: tauri::AppHandle, address: String, name: String) -> Result<(), String> {
+    local_only(&window)?;
+    let url = normalize_address(&address)?;
+    check_connection(&url).await?;
+    let origin = url.origin();
     let label = format!("panel-{}", WINDOW_ID.fetch_add(1, Ordering::Relaxed));
     let title = if name.trim().is_empty() { "TMS Desktop".to_string() } else { format!("TMS · {}", name.chars().take(60).collect::<String>()) };
     let panel = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
@@ -172,6 +181,18 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    fn serve_once(response: &'static str) -> Url {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut request = [0; 4096]; let _ = stream.read(&mut request);
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+        Url::parse(&format!("http://{address}/")).unwrap()
+    }
     #[test] fn panel_addresses_are_normalized() {
         assert_eq!(normalize_address(" https://panel.example.com ").unwrap().as_str(), "https://panel.example.com/");
         assert!(normalize_address("http://127.0.0.1:6366").is_ok());
@@ -181,5 +202,27 @@ mod tests {
         for value in ["file:///C:/", "javascript:alert(1)", "https://user:secret@example.com", "https://example.com/api/v1", "https://example.com/?token=secret", "https://example.com/#/login", "panel.example.com"] {
             assert!(normalize_address(value).is_err(), "accepted {value}");
         }
+    }
+    #[test] fn remote_pages_cannot_impersonate_settings_origin() {
+        for url in ["tauri://localhost/", "http://tauri.localhost/", "https://tauri.localhost/"] { assert!(is_settings_origin(&Url::parse(url).unwrap())); }
+        for url in ["https://localhost/", "tauri://evil/", "file://localhost/C:/", "https://tauri.localhost.example.com/"] { assert!(!is_settings_origin(&Url::parse(url).unwrap())); }
+    }
+    #[test] fn html_panel_connection_is_accepted() {
+        let url = serve_once("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        assert!(tauri::async_runtime::block_on(check_connection(&url)).is_ok());
+    }
+    #[test] fn api_address_is_rejected() {
+        let url = serve_once("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        assert!(tauri::async_runtime::block_on(check_connection(&url)).unwrap_err().contains("前端地址"));
+    }
+    #[test] fn cross_origin_redirect_is_not_followed() {
+        let url = serve_once("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:1/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        assert!(tauri::async_runtime::block_on(check_connection(&url)).unwrap_err().contains("HTTP 302"));
+    }
+    #[test] fn unavailable_server_has_actionable_error() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
+        drop(listener);
+        assert!(tauri::async_runtime::block_on(check_connection(&url)).unwrap_err().contains("无法连接服务器"));
     }
 }
