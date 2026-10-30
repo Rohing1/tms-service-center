@@ -137,6 +137,16 @@ jobs:
             mkdir -p /opt/arm-sysroot /tmp/arm-debs/partial
             apt-get -o Dir::State::status=/dev/null -o APT::Architecture=armhf -o Dir::Cache::archives=/tmp/arm-debs --download-only --no-install-recommends -y install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libdbus-1-dev
             for deb in /tmp/arm-debs/*.deb; do dpkg-deb -x "$deb" /opt/arm-sysroot; done
+            # Debian dev packages contain absolute links into /lib. Rebase these
+            # inside the extracted sysroot so ld uses ARM shared libraries,
+            # rather than falling back to static archives with extra dependencies.
+            while IFS= read -r -d '' link; do
+              destination=$(readlink "$link")
+              if [[ "$destination" = /* ]]; then
+                ln -sfn "/opt/arm-sysroot$destination" "$link"
+              fi
+            done < <(find /opt/arm-sysroot -type l -print0)
+            test -e /opt/arm-sysroot/usr/lib/arm-linux-gnueabihf/libdbus-1.so
             echo 'PKG_CONFIG_ALLOW_CROSS=1' >> "$GITHUB_ENV"
             echo 'PKG_CONFIG_PATH=/opt/arm-sysroot/usr/lib/arm-linux-gnueabihf/pkgconfig:/opt/arm-sysroot/usr/share/pkgconfig' >> "$GITHUB_ENV"
             echo 'PKG_CONFIG_LIBDIR=/opt/arm-sysroot/usr/lib/arm-linux-gnueabihf/pkgconfig:/opt/arm-sysroot/usr/share/pkgconfig' >> "$GITHUB_ENV"
