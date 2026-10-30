@@ -2,10 +2,18 @@
 
 基于 [Teminuosi/Tms](https://github.com/Teminuosi/Tms) 二次开发的线路管理与用户自助面板，集中管理协议、转发、用户配额、套餐分配和人工续期。
 
-[功能介绍](#功能介绍) · [界面预览](#界面预览) · [源码部署](#源码部署) · [使用流程](#使用流程) · [开发与验证](#开发与验证)
+[发布版本](https://github.com/Rohing1/tms-service-center/releases/latest) · [功能介绍](#功能介绍) · [界面预览](#界面预览) · [安装面板](#安装面板) · [源码部署](#源码部署) · [使用流程](#使用流程)
 
-> **当前提供源码，尚未发布本仓库的 Docker 镜像或安装包。**
-> 使用本仓库新增功能，请按下方步骤构建前后端。原有 `panel_install.sh`、`docker-compose-v4.yml`、`docker-compose-v6.yml` 仍使用上游资源，不能用于安装本仓库新增功能。
+本仓库提供独立的 Release、Linux 节点文件和前后端 Docker 镜像。安装脚本、Compose、节点安装入口和更新检查均指向 `Rohing1/tms-service-center`。
+
+| 发布内容 | 地址 |
+| --- | --- |
+| Release 与安装文件 | [最新版本](https://github.com/Rohing1/tms-service-center/releases/latest) |
+| 后端镜像 | `ghcr.io/rohing1/tms-service-center/springboot-backend:latest` |
+| 前端镜像 | `ghcr.io/rohing1/tms-service-center/vite-frontend:latest` |
+| 固定版本 | 将镜像标签 `latest` 替换为对应 Release 标签，例如 `v1.0.0` |
+
+镜像支持 `linux/amd64` 和 `linux/arm64`。现有一键面板安装仍使用 MySQL 5.7，推荐在 AMD64 Linux 主机上运行；ARM64 的数据库部署需要另行适配。节点二进制提供 AMD64 和 ARM64 两种架构。
 
 ## 功能介绍
 
@@ -54,6 +62,21 @@
 
 </details>
 
+## 安装面板
+
+在新的 Linux 面板服务器上，从本仓库最新 Release 获取安装脚本：
+
+```bash
+curl -fL https://github.com/Rohing1/tms-service-center/releases/latest/download/panel_install.sh -o panel_install.sh
+bash panel_install.sh
+```
+
+根据菜单完成安装。脚本会使用本仓库的前后端镜像并生成配置；已有面板迁移前先备份数据库和 `.env`，不要直接覆盖旧部署。新库默认账号与密码均为 `admin_user`，首次登录后立即修改。
+
+安装后在面板新增转发机，再通过该节点的安装入口生成命令。Release 中的 `gost-amd64`、`gost-arm64` 是节点文件，`SHA256SUMS` 可校验下载完整性。
+
+如镜像拉取提示 `denied`，维护者需确认两个 GHCR 包均设为 Public；发布后的首次可见性设置见 [发布说明](docs/releasing.md)。
+
 ## 源码部署
 
 下面使用仓库现有的 [docker-compose-hybrid.yml](docker-compose-hybrid.yml) 构建面板，适合先在独立 Linux 测试机上验收。需要 Git、Docker、Docker Compose 插件及 OpenSSL，构建时需要访问镜像和依赖仓库。
@@ -101,11 +124,11 @@ docker compose -f docker-compose-hybrid.yml --env-file .env logs --tail=100 back
 
 初次初始化使用 `gost.sql`。不要在全新库上重复导入 `hybrid-schema-v1.sql` 至 `v3.sql`；它们是旧版本升级文件。后端启动时会为套餐与续期新增四张表，数据库账号需具备相应建表权限，详情见 [部署与存储](docs/service-center.md#部署与存储)。
 
-这套 Docker 部署尚未在真实服务器验收；本地已完成的构建、测试和页面检查见下方「开发与验证」。
+发布流程会使用临时 MySQL 启动 AMD64 前后端容器，检查首页、登录拦截和四张业务表。真实节点及客户端链路仍需在部署环境验收。
 
 ### 4. 接入节点和配置域名
 
-在管理端「转发机」中新增节点，使用该节点的安装入口生成命令。**当前节点安装命令和 `install.sh` 仍下载上游 `Teminuosi/Tms` 的 Release**，本仓库尚未提供独立节点发布包。安装前确认目标机器，接入后先验证一条直连和一条中转。
+在管理端「转发机」中新增节点，使用该节点的安装入口生成命令。安装脚本会下载本仓库最新 Release 中对应架构的节点文件。安装前确认目标机器，接入后先验证一条直连和一条中转。
 
 面板配置 HTTPS 时，将反向代理指向前端端口，并转发 WebSocket 升级头。详细配置见 [反向代理说明](docs/反向代理.md)。
 
@@ -121,7 +144,7 @@ docker compose -f docker-compose-hybrid.yml --env-file .env logs --tail=100 back
 
 前后端需要一起更新。若本地有未提交修改或分支已分叉，先处理差异；不要用强制重置覆盖自己的配置和代码。
 
-仓库保留的发布工作流包含上游镜像地址和发布链接，尚未完成本仓库的发布适配。镜像工作流已改为手动触发，触发前需检查并调整目标地址。
+维护者通过 Actions 的「Publish TMS release」手动发布新版本。流程完成测试和构建后生成 Release、版本镜像及 `latest` 标签，具体见 [发布说明](docs/releasing.md)。
 
 ## 使用流程
 
@@ -177,13 +200,14 @@ mvn -Dtest=ServiceCenterServiceTest,ServiceCenterControllerTest,RenewalPolicyTes
 - 使用临时 H2 数据库与模拟节点，不连接业务数据库。
 - 浏览器使用测试数据检查模板创建、批量分配、用户申请、人工续期、记录、手机布局及空白/错误状态。
 
-真实 MySQL、节点配置下发、客户端连通性及完整 Docker 部署仍需在部署环境验收。
+发布流程额外检查双架构镜像构建、节点交叉编译及临时 MySQL + 前后端容器启动。ARM64 镜像仅完成构建，真实节点配置下发、客户端连通性和生产迁移仍需部署环境验收。
 
 ## 文档与反馈
 
 - [线路详情与诊断说明](docs/line-detail.md)
 - [自助中心、套餐、批量分配与人工续期说明](docs/service-center.md)
 - [反向代理与 WebSocket 配置](docs/反向代理.md)
+- [Release 与镜像发布说明](docs/releasing.md)
 - [提交问题或功能建议](https://github.com/Rohing1/tms-service-center/issues)
 
 反馈时请说明操作步骤、预期结果和错误现象；日志或截图中的订阅 token、节点密钥及数据库密码应先隐藏。
