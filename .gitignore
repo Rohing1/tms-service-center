@@ -18,6 +18,14 @@ Icon
 .com.apple.timemachine.donotpresent
 
 # Windows
+/desktop-client/src-tauri/gen/
+/desktop-client/src-tauri/fixed-webview2/
+/desktop-client/artifacts/
+/desktop-client/.cache/
+/desktop-client/src-tauri/icons/android/
+/desktop-client/src-tauri/icons/ios/
+/desktop-client/src-tauri/icons/Square*.png
+/desktop-client/src-tauri/icons/StoreLogo.png
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TMS Desktop</title><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<body>
+  <aside>
+    <div class="brand"><span class="logo">T</span><span>TMS<span class="brand-sub">SERVICE CENTER</span></span></div>
+    <div class="intro"><div class="eyebrow">你的服务，随时掌握</div><h1>连接一次，<br>服务尽在眼前。</h1><p>在桌面上管理线路、查看流量，<br>处理套餐与续期。</p></div>
+    <div class="features"><span>线路与诊断</span><span>用户自助中心</span><span>套餐与人工续期</span></div>
+    <footer><span class="dot"></span> 数据保存在你的服务器上</footer>
+  </aside>
+  <main>
+    <header><span class="tag">桌面客户端</span><span class="version">v1.0.0</span></header>
+    <section class="connection"><h2>连接你的 TMS</h2><p class="muted">填写已部署的面板地址，使用原有账号登录。</p>
+      <form id="connect-form">
+        <label for="name">服务器名称</label><input id="name" maxlength="60" placeholder="例如：我的服务中心" autocomplete="organization" required>
+        <label for="address">面板地址</label><input id="address" type="url" placeholder="https://panel.example.com" spellcheck="false" autocomplete="url" required>
+        <p class="hint">填写浏览器能打开的面板首页，不要填写订阅链接或 API 地址。</p>
+        <p id="http-notice" class="notice" hidden>当前使用 HTTP。公网连接建议改用 HTTPS，以保护登录信息。</p>
+        <button id="connect" class="primary" type="submit"><span>连接并打开面板</span><span aria-hidden="true">↗</span></button>
+      </form>
+      <div id="message" role="status" aria-live="polite"></div>
+    </section>
+    <section class="saved"><div class="section-heading"><h3>已保存的服务器</h3><span id="server-count">0 个</span></div><div id="servers"><p class="empty">还没有保存的服务器，首次连接后会显示在这里。</p></div></section>
+    <p class="help">进入面板后，可从顶部「TMS → 服务器设置」切换地址。<br>首次使用需要已部署的 TMS 服务，本客户端不运行数据库或代理节点。</p>
+  </main>
+</body>
+</html>

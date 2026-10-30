@@ -1,0 +1,200 @@
+name: Build TMS desktop clients
+run-name: Desktop v1.0.0
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tms-desktop-release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+    defaults:
+      run:
+        working-directory: desktop-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop-client/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.1'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-client/src-tauri
+          key: windows-${{ matrix.arch }}
+      - run: npm ci
+      - if: matrix.arch == 'x64'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Normal installer
+        run: |
+          npm run build -- --ci --target ${{ matrix.target }} --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/collect.mjs ${{ matrix.target }} windows-${{ matrix.arch }}-setup exe
+      - name: Embedded WebView2 installer
+        run: |
+          ./scripts/prepare-webview.ps1 -Architecture ${{ matrix.arch }}
+          npm run build -- --ci --target ${{ matrix.target }} --bundles nsis --config .cache/fixed-webview.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/collect.mjs ${{ matrix.target }} windows-${{ matrix.arch }}-webview2-setup exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-${{ matrix.arch }}
+          path: desktop-client/artifacts/*
+          if-no-files-found: error
+
+  macos:
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            arch: arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: desktop-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop-client/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.1'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-client/src-tauri
+          key: macos-${{ matrix.arch }}
+      - run: npm ci
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: npm run build -- --ci --target ${{ matrix.target }} --bundles dmg
+      - run: node scripts/collect.mjs ${{ matrix.target }} macos-${{ matrix.arch }} dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-${{ matrix.arch }}
+          path: desktop-client/artifacts/*
+          if-no-files-found: error
+
+  linux:
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+          - runner: ubuntu-24.04
+            target: armv7-unknown-linux-gnueabihf
+            arch: armv7
+    runs-on: ${{ matrix.runner }}
+    container: debian:bookworm
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop-client
+    steps:
+      - name: Build dependencies
+        working-directory: /
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y curl ca-certificates git build-essential pkg-config file rpm patchelf xz-utils
+          if [ '${{ matrix.arch }}' = armv7 ]; then
+            dpkg --add-architecture armhf
+            apt-get update
+            apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libwebkit2gtk-4.1-dev:armhf libgtk-3-dev:armhf libxdo-dev:armhf libdbus-1-dev:armhf
+            echo 'PKG_CONFIG_ALLOW_CROSS=1' >> "$GITHUB_ENV"
+            echo 'PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig' >> "$GITHUB_ENV"
+            echo 'PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig' >> "$GITHUB_ENV"
+            echo 'CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc' >> "$GITHUB_ENV"
+            echo 'CC_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc' >> "$GITHUB_ENV"
+            echo 'CXX_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++' >> "$GITHUB_ENV"
+          else
+            apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libdbus-1-dev
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop-client/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.1'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-client/src-tauri
+          key: linux-${{ matrix.arch }}
+      - run: npm ci
+      - if: matrix.arch != 'armv7'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: npm run build -- --ci --target ${{ matrix.target }} --bundles deb,rpm
+      - run: node scripts/collect.mjs ${{ matrix.target }} linux-${{ matrix.arch }} deb rpm
+      - name: Check package architectures
+        run: |
+          dpkg-deb --info artifacts/*.deb
+          rpm -qip artifacts/*.rpm
+          file src-tauri/target/${{ matrix.target }}/release/tms-desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-${{ matrix.arch }}
+          path: desktop-client/artifacts/*
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: desktop-artifacts
+          merge-multiple: true
+      - name: Publish complete desktop release without replacing panel latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(find desktop-artifacts -type f | wc -l)" -eq 12
+          (cd desktop-artifacts && sha256sum * > SHA256SUMS)
+          tag=desktop-v1.0.0
+          if gh release view "$tag" --json isDraft --jq '.isDraft' > /tmp/desktop-draft 2>/dev/null; then
+            test "$(cat /tmp/desktop-draft)" = true
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha)" = "$GITHUB_SHA"
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title 'TMS Desktop v1.0.0 · 全平台客户端' --notes-file desktop-client/RELEASE.md
+          fi
+          gh release upload "$tag" desktop-artifacts/* --clobber
+          gh release edit "$tag" --draft=false --latest=false

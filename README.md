@@ -64,6 +64,8 @@
 
 ## 安装面板
 
+需要桌面应用请查看 [全平台客户端下载](#桌面客户端下载)。客户端连接已经部署的服务器；下面的安装步骤用于部署服务器本身。
+
 在新的 Linux 面板服务器上，从本仓库最新 Release 获取安装脚本：
 
 ```bash
@@ -76,6 +78,20 @@ bash panel_install.sh
 安装后在面板新增转发机，再通过该节点的安装入口生成命令。Release 中的 `gost-amd64`、`gost-arm64` 是节点文件，`SHA256SUMS` 可校验下载完整性。
 
 如镜像拉取提示 `denied`，维护者需确认两个 GHCR 包均设为 Public；发布后的首次可见性设置见 [发布说明](docs/releasing.md)。
+
+## 桌面客户端下载
+
+[TMS Desktop v1.0.0](https://github.com/Rohing1/tms-service-center/releases/tag/desktop-v1.0.0) 是连接服务器的桌面客户端，不包含本机数据库或 Java 后台。填写面板首页地址后，使用原有账号登录。
+
+| 系统 | 下载 |
+| --- | --- |
+| Windows 普通版（推荐） | [64 位](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-windows-x64-setup.exe) · [ARM64](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-windows-arm64-setup.exe) |
+| Windows 内置 WebView2 版（体积较大） | [64 位](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-windows-x64-webview2-setup.exe) · [ARM64](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-windows-arm64-webview2-setup.exe) |
+| macOS | [Apple 芯片](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-macos-arm64.dmg) · [Intel 芯片](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-macos-x64.dmg) |
+| Linux DEB | [64 位](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-x64.deb) · [ARM64](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-arm64.deb) · [ARMv7](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-armv7.deb) |
+| Linux RPM | [64 位](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-x64.rpm) · [ARM64](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-arm64.rpm) · [ARMv7](https://github.com/Rohing1/tms-service-center/releases/download/desktop-v1.0.0/TMS-Desktop-1.0.0-linux-armv7.rpm) |
+
+Windows 不支持 Win7/8；普通版会在缺少 WebView2 时联网安装，内置版直接提供运行环境。macOS 要求 12+；Linux 要求带桌面环境、glibc 2.36+ 和 WebKitGTK 4.1。软件暂未配置商业签名和 Apple 公证，系统可能提示验证发布者。更多使用和构建说明见 [桌面客户端](desktop-client/README.md)。
 
 ## 源码部署
 
