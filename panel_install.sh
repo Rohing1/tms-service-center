@@ -458,8 +458,11 @@ install_panel() {
   grep -q "services:" docker-compose.yml || { echo "❌ 配置文件内容不对(可能下到了错误页),请重试"; exit 1; }
   if [[ ! -f "gost.sql" ]]; then
     curl -fsSL -o gost.sql "$GOST_SQL_URL" || { echo "❌ 下载数据库文件失败,请检查网络"; exit 1; }
-    grep -qi "CREATE TABLE" gost.sql || { echo "❌ 数据库文件内容不对,请重试"; exit 1; }
   fi
+  grep -qi "CREATE TABLE" gost.sql || { echo "❌ 数据库文件内容不对,请检查 gost.sql"; exit 1; }
+  # SQL 是公开的初始化模板。即使调用者使用 umask 077，容器内的
+  # mysql 用户也必须能读取这个只读挂载文件；否则初始化会中途失败。
+  chmod 0644 gost.sql || { echo "❌ 无法设置初始化 SQL 的读取权限"; exit 1; }
   echo "      ✔ 完成"
 
   # IPv6 默认关闭(避免改 Docker daemon 导致 mysql 启动失败);需要时用 TMS_IPV6=1 开启
@@ -468,6 +471,9 @@ install_panel() {
     configure_docker_ipv6
   fi
 
+  # 先限制权限再写入密码。不能把调用者的 umask 或旧文件权限当作保证。
+  touch .env
+  chmod 0600 .env
   cat > .env <<EOF
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER

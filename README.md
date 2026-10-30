@@ -73,7 +73,9 @@ curl -fL https://github.com/Rohing1/tms-service-center/releases/latest/download/
 bash panel_install.sh
 ```
 
-根据菜单完成安装。脚本会使用本仓库的前后端镜像并生成配置；已有面板迁移前先备份数据库和 `.env`，不要直接覆盖旧部署。新库默认账号与密码均为 `admin_user`，首次登录后立即修改。
+运行脚本后会自动安装，使用本仓库的前后端镜像并生成配置。**首次安装会清理同名 TMS 容器和数据库卷，不要在已有业务数据的实例上重复执行安装命令。** 已有面板迁移前先备份数据库和 `.env`。新库默认账号与密码均为 `admin_user`，首次登录后立即修改。
+
+如果日志出现 `/docker-entrypoint-initdb.d/init.sql: Permission denied`，请按 [初始化文件权限故障恢复](docs/install-troubleshooting.md) 处理，不要通过重新安装或删除数据卷来重试。源码安装脚本已显式设置 SQL 模板为 `0644`、密码配置为 `0600`；旧 Release 附件不会随源码提交自动更新。
 
 安装后在面板新增转发机，再通过该节点的安装入口生成命令。Release 中的 `gost-amd64`、`gost-arm64` 是节点文件，`SHA256SUMS` 可校验下载完整性。
 
