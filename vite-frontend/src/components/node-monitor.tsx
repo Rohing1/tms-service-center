@@ -195,7 +195,7 @@ export default function NodeMonitorModal({ node, onClose }: { node: any | null; 
                   这台转发机的节点程序是 {probe.version || "旧版本"},延迟监测需要 {probe.minVersion} 及以上。
                   在转发机上执行下面这条,选「2. 更新」即可(配置会保留):
                   <code className="block mt-1.5 font-mono text-[11px] break-all bg-default-100 rounded p-2">
-                    curl -L https://github.com/Teminuosi/Tms/releases/latest/download/install.sh -o install.sh && bash install.sh
+                    curl -L https://github.com/Rohing1/tms-service-center/releases/latest/download/install.sh -o install.sh && bash install.sh
                   </code>
                 </div>
               ) : probeTargets.length === 0 ? (

@@ -2,7 +2,7 @@
 # 【本地 build 源码镜像,不拉 :latest,不碰生产】,MySQL 初始化时连 hybrid schema 一起建。
 #
 # 用法(在一台【干净的测试机】上,别和生产面板同机跑,否则容器名/端口冲突):
-#   1) 下源码:curl -L https://github.com/Teminuosi/Tms/archive/refs/heads/main.tar.gz | tar xz && cd Tms-main
+#   1) 下源码:curl -L https://github.com/Rohing1/tms-service-center/archive/refs/heads/main.tar.gz | tar xz && cd tms-service-center-main
 #   2) 建 .env(见文件末尾示例)
 #   3) docker compose -f docker-compose-hybrid.yml --env-file .env up -d --build
 #      (第一次会本地编译前后端,几分钟)

@@ -19,7 +19,7 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/Teminuosi/Tms/releases/latest/download/gost-${ARCH}"
+    echo "https://github.com/Rohing1/tms-service-center/releases/latest/download/gost-${ARCH}"
 }
 
 INSTALL_DIR="/etc/gost"

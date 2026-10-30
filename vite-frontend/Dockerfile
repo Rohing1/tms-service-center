@@ -10,8 +10,8 @@ FROM --platform=$BUILDPLATFORM node:20.19.0 AS builder
 WORKDIR /app
 
 COPY package*.json ./
-# 该项目存在 React/HeroUI peer 依赖冲突且未提交 lockfile,不加此参 npm install 会 ERESOLVE 失败
-RUN npm install --legacy-peer-deps
+# 使用已提交的 lockfile，同时保留项目现有的 peer 依赖兼容参数。
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 # vite build 吃内存,小内存 VPS 上会 JS heap OOM;调大 Node 老生代堆上限

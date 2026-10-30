@@ -32,7 +32,7 @@ import java.util.Map;
 public class VersionController extends BaseController {
 
     /** 面板大版本,跟 CI 里的 VERSION 对齐,只用于展示 */
-    private static final String PANEL_VERSION = "1.0.1";
+    private static final String PANEL_VERSION = "1.0.0";
 
     /**
      * 注意查的是【最新一次构建成功的 workflow】,不是 main 的最新 commit。
@@ -42,7 +42,7 @@ public class VersionController extends BaseController {
      * 按构建成功的 head_sha 比,提示亮起来时镜像一定已经在 GHCR 上了。
      */
     private static final String RUNS_API =
-            "https://api.github.com/repos/Teminuosi/Tms/actions/runs"
+            "https://api.github.com/repos/Rohing1/tms-service-center/actions/workflows/docker-build.yml/runs"
                     + "?branch=main&status=success&per_page=1";
 
     /** GitHub 未认证接口每小时每 IP 只有 60 次,而且国内机大概率连不上,查一次缓存 6 小时 */
@@ -57,7 +57,8 @@ public class VersionController extends BaseController {
     public R info() {
         String current = buildCommit();
         Map<String, Object> data = new HashMap<>();
-        data.put("panelVersion", PANEL_VERSION);
+        String version = System.getenv("TMS_BUILD_VERSION");
+        data.put("panelVersion", version == null || version.isBlank() || "dev".equals(version) ? PANEL_VERSION : version);
         data.put("commit", current);
         data.put("buildTime", System.getenv("TMS_BUILD_TIME"));
 
